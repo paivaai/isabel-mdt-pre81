@@ -106,11 +106,18 @@ def ler_tudo(pasta):
         except Exception:
             camadas = [None]
         for cam in camadas:
-            try:
-                g = gpd.read_file(arq, layer=cam) if cam else gpd.read_file(arq)
+            g, erro = None, None
+            for enc in (None, "latin-1", "cp1252"):      # DGN antigo: acentos fora de UTF-8
+                try:
+                    kw = {"encoding": enc} if enc else {}
+                    g = gpd.read_file(arq, layer=cam, **kw) if cam else gpd.read_file(arq, **kw)
+                    break
+                except Exception as e:
+                    erro = e
+            if g is not None:
                 saida.append((arq, cam, g))
-            except Exception as e:
-                print(f"    não consegui ler {os.path.basename(arq)} [{cam}]: {type(e).__name__}: {str(e)[:80]}")
+            else:
+                print(f"    não consegui ler {os.path.basename(arq)} [{cam}]: {type(erro).__name__}: {str(erro)[:80]}")
     return saida
 
 

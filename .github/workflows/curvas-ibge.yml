@@ -23,4 +23,5 @@ jobs:
           path: |
             relatorio_ibge.txt
             data/curvas_cartas.gpkg
+            data/ibge_bruto/
           if-no-files-found: warn
