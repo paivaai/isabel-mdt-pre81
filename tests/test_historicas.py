@@ -32,3 +32,12 @@ def test_imagens_historicas(projeto):
     html = (projeto / "outputs/webmap_standalone.html").read_text(encoding="utf-8")
     for t in ("Drenagem 1967", "Drenagem 1973", "Imagem 1967", "Rio/\\u00e1gua 1973"):
         assert t in html
+
+
+def test_gj_poligono_invalido():
+    import geopandas as gpd
+    from shapely.geometry import Polygon
+    from mdt_pre81.webmap import _gj
+    gravata = Polygon([(500000, 7600000), (500100, 7600100), (500100, 7600000), (500000, 7600100)])
+    r = _gj(gpd.GeoDataFrame({"a": [1]}, geometry=[gravata], crs="EPSG:31982"), 20)
+    assert r and len(r["features"]) == 1

@@ -5,6 +5,7 @@ Aceita GeoTIFF ou TIFF + .tfw (sem CRS: informe `crs` na config ou será deduzid
 Lê só a janela da AOI e reduz (px_max) para caber na memória, mesmo com TIFs de ~1 GB.
 """
 import os, warnings
+import shapely
 import numpy as np
 import geopandas as gpd
 import rasterio
@@ -85,7 +86,7 @@ def recortar_imagem(arq, aoi, saida_tif, crs=None, px_max=7000):
     return saida_tif, dict(px=px, util=util, crs=crs_src.to_string())
 
 
-def processar_imagem(item, aoi, base, saida):
+def processar_imagem(item, aoi, base, saida, natd=None):
     """item: {id, rotulo, arquivo, crs?, cor?, px_max?, modo?, ajuste_limiar?, area_min_px?, compr_min_px?}"""
     hid = str(item["id"])
     arq = os.path.normpath(os.path.join(base, item["arquivo"]))
@@ -95,10 +96,18 @@ def processar_imagem(item, aoi, base, saida):
     pasta = os.path.join(saida, f"hist_{hid}")
     rec, info = recortar_imagem(arq, aoi, os.path.join(pasta, f"recorte_{hid}.tif"), item.get("crs"),
                                 int(item.get("px_max", 7000)))
+    mascara = None
+    km = float(item.get("corredor_km", 5))
+    if natd is not None and len(natd) and km > 0:   # procura o rio só ao longo das áreas NA_TD (+ corredor)
+        mascara = shapely.union_all(natd.geometry.values).buffer(km * 1000).intersection(aoi)
+        print(f"  corredor de busca: NA_TD + {km:g} km")
     gl, ga = core.extrair_drenagem(rec, pasta, modo=item.get("modo", "todas"),
                                    ajuste_limiar=item.get("ajuste_limiar", 1.0),
                                    area_min_px=item.get("area_min_px", 12), compr_min_px=item.get("compr_min_px", 15),
-                                   rotulo=hid, poligono=item.get("poligono", "toda"))
+                                   rotulo=hid, poligono=item.get("poligono", "toda"), mascara=mascara,
+                                   textura_px=int(item.get("textura_px", 7)),
+                                   agua_max_pct=item.get("agua_max_pct", 15),
+                                   area_min_km2=float(item.get("area_min_km2", 0.02)))
     return dict(id=hid, gl=gl, ga=ga, info=info)
 
 

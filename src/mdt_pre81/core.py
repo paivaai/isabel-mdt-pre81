@@ -204,8 +204,13 @@ def melhorar_landsat(entrada, saida, bandas=(1, 2, 3), upscale=2, p_min=1, p_max
 
 
 def extrair_drenagem(entrada, pasta, modo="todas", ajuste_limiar=1.0, area_min_px=12, fechar_px=1,
-                     agua_larga_px=3, esporao_min_px=8, compr_min_px=15, rotulo="1979", poligono="larga"):
-    """Água (pixels escuros em todas as bandas) -> esqueleto -> linhas de drenagem + polígonos de água."""
+                     agua_larga_px=3, esporao_min_px=8, compr_min_px=15, rotulo="1979", poligono="larga", mascara=None, textura_px=0, agua_max_pct=None,
+                     area_min_km2=0.0):
+    """Água (pixels escuros em todas as bandas) -> esqueleto -> linhas de drenagem + polígonos de água.
+
+    Opcionais (usados nas fotos históricas p&b): `mascara` = geometria em EPSG:31982 que limita a busca (ex.: corredor
+    do rio); `textura_px` > 0 exige superfície LISA (água) e descarta escuro texturizado (mata/sombra);
+    `agua_max_pct` aperta o limiar até a água cair abaixo dessa % da área analisada; `area_min_km2` remove manchas pequenas."""
     from skan import Skeleton, summarize
     from shapely.geometry import LineString, shape
 
@@ -223,6 +228,12 @@ def extrair_drenagem(entrada, pasta, modo="todas", ajuste_limiar=1.0, area_min_p
     n, h, w = arr.shape
     nd = nodata if nodata is not None else 0
     validos = ~(np.all(arr == nd, axis=0) | np.any(~np.isfinite(arr), axis=0))
+    if mascara is not None:
+        from rasterio.features import rasterize
+        import geopandas as _gpd
+        mg = _gpd.GeoSeries([mascara], crs=CRS_ALVO).to_crs(crs).iloc[0]
+        validos &= rasterize([(mg, 1)], out_shape=(h, w), transform=transform, fill=0, dtype="uint8").astype(bool)
+        print(f"  máscara (corredor): {validos.mean()*100:.0f}% da imagem recortada")
     core = binary_erosion(validos, iterations=4)
 
     def norm(b):
@@ -231,18 +242,40 @@ def extrair_drenagem(entrada, pasta, modo="todas", ajuste_limiar=1.0, area_min_p
 
     idx = np.max(np.stack([norm(arr[i]) for i in range(n)]), axis=0) if modo == "todas" else norm(arr[int(modo) - 1])
     del arr
+    liso = None
+    if textura_px:
+        from scipy.ndimage import uniform_filter
+        m1 = uniform_filter(idx, textura_px); m2 = uniform_filter(idx * idx, textura_px)
+        desvio = np.sqrt(np.clip(m2 - m1 * m1, 0, None))
     idx = gaussian_filter(idx, 0.8); idx[~validos] = 1.0
     t1 = threshold_otsu(idx[core]); cauda = idx[core][idx[core] < t1]
     t2 = threshold_otsu(cauda) if cauda.size > 100 else t1
     limiar = t2 * ajuste_limiar
-    agua = (idx < limiar) & validos
+    if textura_px:
+        esc = (idx < limiar) & core
+        if esc.sum() > 500:
+            lim_sd = threshold_otsu(desvio[esc])
+            liso = desvio <= lim_sd
+            print(f"  textura: {100*(esc & liso).sum()/esc.sum():.0f}% dos pixels escuros são lisos (água); "
+                  f"o resto (mata/sombra) é descartado")
+    def _mascara_agua(lim):
+        a = (idx < lim) & validos
+        return a & liso if liso is not None else a
+    agua = _mascara_agua(limiar)
+    if agua_max_pct:
+        for _ in range(10):
+            if agua[core].mean() * 100 <= agua_max_pct:
+                break
+            limiar *= 0.9
+            agua = _mascara_agua(limiar)
+        print(f"  limiar final {limiar:.3f} (água limitada a {agua_max_pct}% da área analisada)")
     frac = agua[core].mean() * 100
     print(f"Água bruta: {frac:.1f}% da cena (limiar {limiar:.3f})")
     if frac > 15:
         print("  ATENÇÃO: muita água detectada; reduza ajuste_limiar (ex.: 0.8) ou use modo=<número da banda>.")
     if frac < 0.2:
         print("  ATENÇÃO: quase nada detectado; aumente ajuste_limiar (ex.: 1.3).")
-    agua = limpar_pequenos(agua, area_min_px)
+    agua = limpar_pequenos(agua, max(area_min_px, int(area_min_km2 / km2_px) if km2_px else 0))
     if fechar_px:
         agua = ndi.binary_closing(agua, structure=disk(fechar_px)) & validos
     agua |= (~agua & ~limpar_pequenos(~agua, area_min_px)) & validos

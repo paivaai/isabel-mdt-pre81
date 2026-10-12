@@ -36,7 +36,17 @@ def _gj(gdf, simplificar=0.0, max_cols=14, crs_metrico=CRS_ALVO):
     if simplificar:
         g["geometry"] = g.to_crs(crs_metrico).geometry.simplify(simplificar).to_crs(g.crs)
     g = g.to_crs("EPSG:4326")
-    g["geometry"] = shapely.set_precision(g.geometry.values, 1e-5)
+    g["geometry"] = shapely.make_valid(g.geometry.values)
+    try:
+        g["geometry"] = shapely.set_precision(g.geometry.values, 1e-5)
+    except Exception:       # geometria problemática: arredonda uma a uma e mantém a original se falhar
+        def _prec(x):
+            try:
+                return shapely.make_valid(shapely.set_precision(x, 1e-5))
+            except Exception:
+                return x
+        g["geometry"] = [_prec(x) for x in g.geometry.values]
+    g = g[~g.geometry.is_empty]
     cols = [c for c in g.columns if c != "geometry"][:max_cols]
     g = g[cols + ["geometry"]]
     for c in cols:

@@ -105,11 +105,12 @@ def etapa_historicas(cfg):
     if not itens:
         print("  Sem 'historicas' na config."); return None
     aoi = _aoi(cfg)
+    natd = _natd(cfg)
     falhas = []
     for it in itens:
         print(f"\n--- imagem {it.get('id')} ---", flush=True)
         try:
-            historicas.processar_imagem(it, aoi, cfg["_base"], _saida(cfg))
+            historicas.processar_imagem(it, aoi, cfg["_base"], _saida(cfg), natd)
         except Exception as e:      # uma imagem com problema não derruba as outras
             import traceback; traceback.print_exc()
             falhas.append(f"{it.get('id')}: {type(e).__name__}: {e}")
