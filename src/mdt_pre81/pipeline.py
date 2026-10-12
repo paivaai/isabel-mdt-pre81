@@ -21,7 +21,20 @@ def carregar_config(caminho="config/projeto.yml"):
 def _p(cfg, chave):
     """Caminho relativo à raiz do repositório (None se vazio)."""
     v = cfg["entradas"].get(chave)
-    return os.path.normpath(os.path.join(cfg["_base"], v)) if v else None
+    if not v:
+        return None
+    p = os.path.normpath(os.path.join(cfg["_base"], v))
+    if not os.path.exists(p) and chave in ("landsat", "natd"):
+        # tolera outro nome/extensão na mesma pasta (ex.: NA_TD_TOTAL.rar em vez de .zip)
+        import glob
+        pasta = os.path.dirname(p)
+        exts = (".tif", ".tiff") if chave == "landsat" else (".shp", ".zip", ".rar")
+        cands = sorted(f for f in glob.glob(os.path.join(pasta, "*")) if f.lower().endswith(exts)
+                       and (chave != "natd" or "na_td" in os.path.basename(f).lower() or "natd" in os.path.basename(f).lower()))
+        if cands:
+            print(f"  ({chave}: usando {os.path.basename(cands[0])})")
+            return cands[0]
+    return p
 
 
 def _saida(cfg, *partes):
