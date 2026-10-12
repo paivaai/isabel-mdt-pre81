@@ -1,0 +1,35 @@
+name: Processar tudo e atualizar o webmap
+# Entradas (Landsat + NA_TD) ficam num Release chamado "dados" (arquivos landsat_1979.tif e NA_TD_TOTAL.zip),
+# assim os dados pesados/sensíveis não entram no histórico do git.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  processar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: sudo apt-get update && sudo apt-get install -y libarchive13 unrar-free p7zip-full || true
+      - run: pip install -e .
+      - name: Baixar dados do Release "dados"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download dados --dir data --clobber
+      - name: Rodar o pipeline
+        run: python -m mdt_pre81 all 2>&1 | tee outputs/log.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resultados
+          path: outputs/
+      - name: Commitar o webmap atualizado (docs/)
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs
+          git diff --cached --quiet || (git commit -m "Atualiza webmap" && git push)

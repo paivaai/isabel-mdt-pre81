@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mdt-pre81"
+version = "0.1.0"
+description = "MDT pré-1981 (Buritama/Zacarias) a partir de cartas antigas + Landsat 1979 + webmap"
+requires-python = ">=3.10"
+dependencies = ["numpy", "pandas", "geopandas", "pyogrio", "shapely>=2", "rasterio", "scipy", "scikit-image",
+                "skan", "pillow", "matplotlib", "requests", "pyyaml", "libarchive-c"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+mdt-pre81 = "mdt_pre81.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mdt_pre81 = ["webmap_template.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

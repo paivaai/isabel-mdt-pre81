@@ -1,0 +1,24 @@
+name: Baixar e inspecionar curvas do IBGE
+# Os runners do GitHub têm internet aberta: aqui o download das cartas vetoriais do IBGE funciona.
+# O relatório (log) diz se as curvas têm altitude e em que formato/datum vêm.
+on:
+  workflow_dispatch:
+jobs:
+  ibge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e .
+      - name: Baixar e inspecionar
+        run: python -m mdt_pre81 curvas 2>&1 | tee relatorio_ibge.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: curvas-ibge
+          path: |
+            relatorio_ibge.txt
+            data/curvas_cartas.gpkg
+          if-no-files-found: warn

@@ -1,0 +1,46 @@
+# Configuração do projeto. Caminhos relativos à raiz do repositório.
+entradas:
+  landsat: data/landsat_1979.tif          # cena Landsat 2 MSS (ago/1979) em GeoTIFF
+  natd: data/NA_TD_TOTAL.zip              # .shp, .zip ou .rar (áreas de referência ao longo do rio)
+  curvas: data/curvas_cartas.gpkg         # curvas das cartas antigas (campo 'cota'); se não existir, baixa do IBGE
+  pontos: null                            # pontos cotados opcionais (campo numérico de cota)
+  aoi: null                               # opcional: polígono da região de estudo (substitui municípios)
+
+area:
+  municipios: [Buritama, Zacarias]
+  margem_km: 3.0
+  fallback_km: 12.0                       # sem internet: AOI = NA_TD + este buffer
+  baixar_limites_ibge: true
+
+landsat:
+  melhorar: true
+  upscale: 2
+  gama: 0.95
+  saturacao: 1.25
+  clahe_clip: 0.004
+  nitidez: 0.8
+
+drenagem:
+  modo: todas
+  ajuste_limiar: 1.0
+  area_min_px: 12
+  compr_min_px: 15
+
+curvas:
+  baixar_ibge: true                       # tenta cartas vetoriais 1:50.000 do IBGE se o arquivo acima não existir
+  crs_origem: "EPSG:22522"                # datum ORIGINAL da carta: Córrego Alegre UTM 22S (ou EPSG:29192 SAD69)
+  campo_cota: null                        # null = detecta (cota/elevacao/altitude/Z...)
+  resolucao_m: 30
+  suavizar: 1.0
+  dist_max_curva_m: 1500                  # além disso a célula fica SEM DADOS
+  usar_drenagem_no_talvegue: true
+
+saidas:
+  pasta: outputs
+
+webmap:
+  titulo: "Projeto Isabel — MDT pré-1981 (Buritama/Zacarias)"
+  resumo: "Landsat 1979, drenagem e MDT derivado de cartas topográficas antigas, sobre imagem atual."
+  pasta_site: docs                        # publicado pelo GitHub Pages
+  standalone: true                        # também gera outputs/webmap_standalone.html (arquivo único)
+  wms: []                                 # ex.: - {nome: "CTM50", url: "https://...", layers: "...", versao: "1.1.1"}
