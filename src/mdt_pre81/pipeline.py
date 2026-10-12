@@ -152,7 +152,9 @@ def etapa_webmap(cfg):
     mdt = _carregar_mdt(cfg)
     lan = _saida(cfg, "landsat_1979_melhorado.tif")
     lan = lan if os.path.exists(lan) else None
-    kw = dict(aoi=aoi, natd=natd, drenagem=drenagem, agua=agua, curvas=curvas, mdt=mdt, landsat=lan,
+    from . import cartas as _c
+    cartas = _c.camadas_cartas(os.path.join(cfg["_base"], "data", "cartas_raster"), w.get("cartas") or [])
+    kw = dict(cartas=cartas, aoi=aoi, natd=natd, drenagem=drenagem, agua=agua, curvas=curvas, mdt=mdt, landsat=lan,
               wms=w.get("wms") or [], titulo=w.get("titulo", "Projeto Isabel — MDT pré-1981"), resumo=w.get("resumo", ""))
     pasta = os.path.normpath(os.path.join(cfg["_base"], w.get("pasta_site", "docs")))
     out = [webmap.build_webmap(pasta, modo="site", **kw)]
@@ -161,7 +163,13 @@ def etapa_webmap(cfg):
     return out
 
 
-FUNCOES = dict(aoi=etapa_aoi, landsat=etapa_landsat, drenagem=etapa_drenagem, curvas=etapa_curvas,
+def etapa_cartas(cfg):
+    """Baixa/inspeciona as cartas escaneadas do IBGE (rodar no GitHub Actions; fora de 'all')."""
+    from . import cartas as _c
+    _c.inspecionar_cartas(os.path.join(cfg["_base"], "data", "cartas_raster"))
+
+
+FUNCOES = dict(cartas=etapa_cartas, aoi=etapa_aoi, landsat=etapa_landsat, drenagem=etapa_drenagem, curvas=etapa_curvas,
                mdt=etapa_mdt, webmap=etapa_webmap)
 
 

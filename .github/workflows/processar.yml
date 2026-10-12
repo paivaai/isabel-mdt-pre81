@@ -17,6 +17,7 @@ jobs:
           cache: pip
       - run: sudo apt-get update && sudo apt-get install -y libarchive13 unrar-free p7zip-full || true
       - run: pip install -e .
+      - run: sudo apt-get install -y poppler-utils || true
       - name: Baixar dados do Release "dados"
         env:
           GH_TOKEN: ${{ github.token }}
@@ -24,6 +25,13 @@ jobs:
           mkdir -p data
           gh release download dados --dir data --clobber || echo "Release 'dados' não encontrado: seguindo sem Landsat/NA_TD."
           ls -la data
+      - name: Baixar cartas escaneadas do IBGE (camada de validação)
+        continue-on-error: true
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          mkdir -p outputs
+          python -m mdt_pre81 cartas 2>&1 | tee outputs/log_cartas.txt
       - name: Rodar o pipeline
         env:
           PYTHONUNBUFFERED: "1"
@@ -39,6 +47,7 @@ jobs:
             outputs/
             data/curvas_cartas.gpkg
             data/rotulagem_*.png
+            data/cartas_raster/inventario.txt
       - name: Commitar o webmap atualizado (docs/)
         run: |
           git config user.name "github-actions"

@@ -128,7 +128,7 @@ def _raster_mdt(dem, transform, res, crs=CRS_ALVO, max_px=2000, grade_px=500):
 
 # ------------------------------------------------------------------ construção
 def montar_dados(aoi=None, natd=None, drenagem=None, agua=None, curvas=None, mdt=None, landsat=None,
-                 wms=None, titulo="Projeto Isabel — MDT pré-1981", resumo=None):
+                 wms=None, titulo="Projeto Isabel — MDT pré-1981", resumo=None, cartas=None):
     """Retorna (dados_dict, arquivos_png {nome: bytes}). Rasters ficam como 'arquivo' (resolvido depois)."""
     dados = dict(titulo=titulo, resumo=resumo or "", camadas=[], wms=wms or [])
     arquivos = {}
@@ -149,6 +149,11 @@ def montar_dados(aoi=None, natd=None, drenagem=None, agua=None, curvas=None, mdt
                                          legenda=leg))
             dados["grade"] = grade
             dados["mdt_bounds"] = b
+    for i, (rot, png, b) in enumerate(cartas or []):
+        nome = f"carta_{i}.png"
+        arquivos[nome] = png
+        dados["camadas"].append(dict(id=f"carta{i}", rotulo="Carta (validação): " + rot, tipo="raster",
+                                     arquivo=nome, bounds=b, ligado=False, opacidade=0.85))
     if curvas is not None and len(curvas):
         gj = _gj(curvas, simplificar=8)
         if gj:
