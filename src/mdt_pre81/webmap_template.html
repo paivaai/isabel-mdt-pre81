@@ -16,7 +16,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:13px/1.
 .painel details>summary{cursor:pointer;font-weight:600;margin:4px 0}
 .painel h2{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:8px 0 3px}
 .painel label{display:flex;align-items:center;gap:6px;margin:2px 0;cursor:pointer}
-.painel input[type=range]{width:100%;margin:0 0 4px 22px;max-width:220px}
+.painel input[type=range]{width:calc(100% - 24px);margin:0 0 4px 22px;max-width:220px;box-sizing:border-box}
+.painel.camadas{max-height:calc(100vh - 28px);max-height:calc(100dvh - 28px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;box-sizing:border-box}
 .sw{width:12px;height:12px;border-radius:2px;display:inline-block;border:1px solid rgba(0,0,0,.4);flex:none}
 .leg{height:10px;border-radius:3px;margin:3px 0 0 22px;max-width:220px}
 .legn{display:flex;justify-content:space-between;margin-left:22px;max-width:220px;color:var(--mut);font-size:11px}
@@ -32,7 +33,14 @@ table.at td:first-child{font-weight:600;color:#556}
 #v3dbar{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:8px;align-items:center;color:#fff;flex-wrap:wrap}
 #v3dbar button{background:#222a38;color:#fff;border-color:#445}
 #v3dinfo{position:absolute;left:8px;bottom:8px;color:#9fb0c8;font-size:12px}
-@media (max-width:640px){.painel{max-width:220px}}
+@media (max-width:640px){
+.painel.camadas{max-width:min(78vw,300px);font-size:14px;padding:6px 8px}
+.painel.camadas .resumo{display:none}
+.painel.camadas label{padding:5px 0}
+.painel.camadas input[type=checkbox],.painel.camadas input[type=radio]{width:18px;height:18px}
+.painel.camadas details>summary{padding:4px 0}
+.leaflet-control-zoom{display:none}
+}
 </style>
 </head>
 <body>
@@ -106,8 +114,8 @@ D.camadas.forEach(function(c){
 var Painel = L.Control.extend({
   options:{position:"topright"},
   onAdd:function(){
-    var d = L.DomUtil.create("div","painel"); L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
-    var h = "<h1>"+esc(D.titulo||"")+"</h1>"+(D.resumo?"<p class='resumo'>"+esc(D.resumo)+"</p>":"")+"<details open><summary>Camadas</summary>";
+    var d = L.DomUtil.create("div","painel camadas"); L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+    var h = "<h1>"+esc(D.titulo||"")+"</h1>"+(D.resumo?"<p class='resumo'>"+esc(D.resumo)+"</p>":"")+"<details"+(window.innerWidth>640?" open":"")+"><summary>Camadas (toque para abrir/fechar)</summary>";
     h += "<h2>Mapa de fundo</h2>";
     Object.keys(bases).forEach(function(n){h += "<label><input type='radio' name='base' value='"+n+"'"+(n===baseAtual?" checked":"")+"> "+n+"</label>";});
     h += "<h2>Resultados</h2>";
