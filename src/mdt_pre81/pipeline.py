@@ -165,7 +165,21 @@ FUNCOES = dict(aoi=etapa_aoi, landsat=etapa_landsat, drenagem=etapa_drenagem, cu
 
 
 def executar(etapas, config="config/projeto.yml"):
+    """Roda as etapas; um erro numa etapa é registrado e as seguintes continuam (sai com código 1 no fim)."""
+    import traceback
     cfg = carregar_config(config)
+    falhas = []
     for e in (ETAPAS if etapas == ["all"] else etapas):
-        print("\n" + "=" * 72 + f"\nETAPA: {e}\n" + "=" * 72)
-        FUNCOES[e](cfg)
+        print("\n" + "=" * 72 + f"\nETAPA: {e}\n" + "=" * 72, flush=True)
+        try:
+            FUNCOES[e](cfg)
+        except Exception as ex:
+            tb = traceback.format_exc()
+            print(f"\n!!! ERRO NA ETAPA '{e}': {type(ex).__name__}: {ex}\n{tb}", flush=True)
+            falhas.append((e, f"{type(ex).__name__}: {ex}"))
+    print("\n" + "=" * 72 + "\nRESUMO\n" + "=" * 72)
+    if falhas:
+        for e, m in falhas:
+            print(f"  FALHOU  {e}: {m}")
+        sys.exit(1)
+    print("  todas as etapas concluídas")
