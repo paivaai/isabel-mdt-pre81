@@ -126,13 +126,16 @@ def relatorio_camada(arq, cam, g):
     cols = [c for c in g.columns if c != "geometry"]
     print(f"    - {os.path.relpath(arq, DEST)}{f' [{cam}]' if cam else ''}: {len(g)} feições | {tipos} | "
           f"CRS: {g.crs.to_string() if g.crs else 'SEM CRS'} | Z na geometria: {tem_z(g)}")
-    for c in cols[:12]:
+    for c in cols[:20]:
         s = g[c]
-        if pd.api.types.is_numeric_dtype(s):
-            print(f"        campo {c!r} (numérico): {s.min()} .. {s.max()} | {s.nunique()} valores")
-        else:
-            ex = [str(v) for v in s.dropna().unique()[:5]]
-            print(f"        campo {c!r} (texto): {s.nunique()} valores, ex.: {ex}")
+        try:
+            if pd.api.types.is_numeric_dtype(s):
+                print(f"        campo {c!r} (numérico): {s.min()} .. {s.max()} | {s.nunique()} valores")
+            else:
+                t = s.dropna().astype(str)          # astype(str): colunas com dict/lista não quebram
+                print(f"        campo {c!r} (texto): {t.nunique()} valores, ex.: {list(t.unique()[:5])}")
+        except Exception as e:
+            print(f"        campo {c!r}: não consegui resumir ({type(e).__name__})")
 
 
 def achar_cota(g):
