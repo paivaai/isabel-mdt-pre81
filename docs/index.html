@@ -1,6 +1,274 @@
-<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Webmap MDT pré-1981</title>
-<body style="font:16px system-ui;max-width:640px;margin:15vh auto;padding:0 16px;color:#1d2433">
-<h1>Webmap ainda não gerado</h1>
-<p>Rode <code>python -m mdt_pre81 all</code> (ou a Action <b>Processar tudo</b>) e faça commit da pasta <code>docs/</code>.
-Esta página será substituída pelo mapa com o satélite Esri por baixo.</p></body></html>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{--bg:#fff;--fg:#1d2433;--mut:#5b6577;--bd:#d6dbe4;--ac:#1f6feb;--sh:0 2px 10px rgba(0,0,0,.25)}
+@media (prefers-color-scheme:dark){:root{--bg:#1c212b;--fg:#e8ecf3;--mut:#9aa5b8;--bd:#363e4d;--ac:#58a6ff}}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:13px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#mapa{position:absolute;inset:0}
+.painel{background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:8px;box-shadow:var(--sh);padding:8px 10px;max-width:290px}
+.painel h1{font-size:14px;margin:0 0 2px}
+.painel .resumo{color:var(--mut);margin:0 0 6px;font-size:12px}
+.painel details>summary{cursor:pointer;font-weight:600;margin:4px 0}
+.painel h2{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:8px 0 3px}
+.painel label{display:flex;align-items:center;gap:6px;margin:2px 0;cursor:pointer}
+.painel input[type=range]{width:100%;margin:0 0 4px 22px;max-width:220px}
+.sw{width:12px;height:12px;border-radius:2px;display:inline-block;border:1px solid rgba(0,0,0,.4);flex:none}
+.leg{height:10px;border-radius:3px;margin:3px 0 0 22px;max-width:220px}
+.legn{display:flex;justify-content:space-between;margin-left:22px;max-width:220px;color:var(--mut);font-size:11px}
+button{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:4px 8px;cursor:pointer}
+button:hover,button.on{border-color:var(--ac);color:var(--ac)}
+.barra{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+#coord{position:absolute;left:8px;bottom:22px;z-index:900;padding:3px 8px;font:12px ui-monospace,Menlo,Consolas,monospace;pointer-events:none}
+#med{position:absolute;right:8px;bottom:22px;z-index:900;padding:4px 8px;display:none}
+table.at{border-collapse:collapse;font-size:12px}table.at td{border-bottom:1px solid #ddd;padding:2px 6px;vertical-align:top}
+table.at td:first-child{font-weight:600;color:#556}
+#v3d{position:absolute;inset:0;z-index:2000;background:#10151d;display:none}
+#v3d canvas{display:block;width:100%;height:100%}
+#v3dbar{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:8px;align-items:center;color:#fff;flex-wrap:wrap}
+#v3dbar button{background:#222a38;color:#fff;border-color:#445}
+#v3dinfo{position:absolute;left:8px;bottom:8px;color:#9fb0c8;font-size:12px}
+@media (max-width:640px){.painel{max-width:220px}}
+</style>
+</head>
+<body>
+<div id="mapa"></div>
+<div id="coord" class="painel">—</div>
+<div id="med" class="painel"></div>
+<div id="v3d"><div id="v3dbar"><button id="v3dx">✕ Fechar</button>
+<label>Exagero vertical <input id="v3de" type="range" min="1" max="12" step="0.5" value="3"> <b id="v3dv">3×</b></label></div>
+<div id="v3dinfo">Arraste para girar · roda/pinça para zoom · Shift+arrastar para deslocar</div></div>
+<script src="assets/dados.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+var D = window.DADOS || {camadas:[],wms:[],extensao:[[-21.4,-50.6],[-20.9,-50.0]]};
+document.title = D.titulo || document.title;
+var R = 6378137;
+function merc(ll){return [R*ll.lng*Math.PI/180, R*Math.log(Math.tan(Math.PI/4+ll.lat*Math.PI/360))];}
+
+var map = L.map("mapa",{maxZoom:19,doubleClickZoom:false}).fitBounds(D.extensao);
+map.createPane("rasters").style.zIndex = 250;
+L.control.scale({imperial:false}).addTo(map);
+
+var bases = {
+ "Satélite (Esri World Imagery)": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    {maxNativeZoom:18,maxZoom:19,attribution:"Imagem: Esri, Maxar, Earthstar Geographics, USDA, USGS, AeroGRID, IGN"}),
+ "Topográfico (Esri)": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    {maxNativeZoom:18,maxZoom:19,attribution:"Esri, HERE, Garmin, USGS"}),
+ "OpenStreetMap": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {maxNativeZoom:19,maxZoom:19,attribution:"© OpenStreetMap contributors"})
+};
+var baseAtual = "Satélite (Esri World Imagery)";
+bases[baseAtual].addTo(map);
+var rotulos = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+    {maxNativeZoom:18,maxZoom:19,pane:"shadowPane"});
+
+var cam = {};
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");}
+function tabela(p){
+  var h = "<table class='at'>";
+  Object.keys(p||{}).forEach(function(k){ if(p[k]!==null && p[k]!=="") h += "<tr><td>"+esc(k)+"</td><td>"+esc(p[k])+"</td></tr>"; });
+  return h + "</table>";
+}
+D.camadas.forEach(function(c){
+  var lay;
+  if(c.tipo==="raster"){
+    lay = L.imageOverlay(c.url, c.bounds, {pane:"rasters",opacity:c.opacidade==null?1:c.opacidade,interactive:false});
+  } else {
+    var est = c.estilo || {};
+    lay = L.geoJSON(c.geojson,{
+      style:function(f){
+        var s = Object.assign({bubblingMouseEvents:false}, est);
+        if(c.campo_classe && c.classes){var col=c.classes[String(f.properties[c.campo_classe])]; if(col){s.color=col;s.fillColor=col;}}
+        return s;},
+      pointToLayer:function(f,ll){return L.circleMarker(ll,{radius:4,bubblingMouseEvents:false});},
+      onEachFeature:function(f,l){
+        if(c.id==="aoi") { if(l.options) l.options.interactive=false; return; }
+        l.bindPopup("<b>"+esc(c.rotulo)+"</b>"+tabela(f.properties),{maxWidth:360});
+      }
+    });
+  }
+  cam[c.id] = {layer:lay, def:c};
+  if(c.ligado) lay.addTo(map);
+});
+(D.wms||[]).forEach(function(w,i){
+  var l = L.tileLayer.wms(w.url,{layers:w.layers,format:w.formato||"image/png",transparent:true,version:w.versao||"1.1.1",opacity:.8,attribution:w.atribuicao||""});
+  cam["wms"+i] = {layer:l, def:{id:"wms"+i,rotulo:w.nome,tipo:"wms",ligado:false}};
+});
+
+var Painel = L.Control.extend({
+  options:{position:"topright"},
+  onAdd:function(){
+    var d = L.DomUtil.create("div","painel"); L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+    var h = "<h1>"+esc(D.titulo||"")+"</h1>"+(D.resumo?"<p class='resumo'>"+esc(D.resumo)+"</p>":"")+"<details open><summary>Camadas</summary>";
+    h += "<h2>Mapa de fundo</h2>";
+    Object.keys(bases).forEach(function(n){h += "<label><input type='radio' name='base' value='"+n+"'"+(n===baseAtual?" checked":"")+"> "+n+"</label>";});
+    h += "<h2>Resultados</h2>";
+    Object.keys(cam).forEach(function(id){
+      var c = cam[id].def, sw="";
+      if(c.tipo==="geojson" && !(c.classes && Object.keys(c.classes).length)){sw = "<span class='sw' style='background:"+((c.estilo||{}).color||"#888")+"'></span>";}
+      var on = c.ligado?" checked":"";
+      h += "<label><input type='checkbox' data-id='"+id+"'"+on+"> "+sw+esc(c.rotulo)+"</label>";
+      if(c.tipo==="raster"||c.tipo==="wms") h += "<input type='range' min='0' max='1' step='0.05' value='"+(c.opacidade==null?(c.tipo==="wms"?0.8:1):c.opacidade)+"' data-op='"+id+"' title='Transparência'>";
+      if(c.legenda){h += "<div class='leg' style='background:linear-gradient(90deg,"+c.legenda.cores.join(",")+")'></div><div class='legn'><span>"+c.legenda.min.toFixed(0)+" m</span><span>"+c.legenda.max.toFixed(0)+" m</span></div>";}
+      if(c.classes){Object.keys(c.classes).forEach(function(k){h += "<label style='margin-left:22px'><span class='sw' style='background:"+c.classes[k]+"'></span>"+esc(k)+"</label>";});}
+    });
+    h += "<h2>Referência</h2><label><input type='checkbox' id='rot'> Rótulos e limites (Esri)</label></details>";
+    h += "<div class='barra'><button id='bTodos'>Desmarcar todos</button><button id='bMed'>📏 Régua</button><button id='bArea'>▱ Área</button><button id='bPin'>📍 Pin</button><button id='bLimpa'>Limpar</button><button id='bFull'>⛶ Tela cheia</button>"
+         + (D.grade?"<button id='b3d'>🏔 Ver MDT em 3D</button>":"")+"</div>";
+    d.innerHTML = h; return d;
+  }
+});
+var painel = new Painel().addTo(map), pe = painel.getContainer();
+pe.addEventListener("change",function(e){
+  var t = e.target;
+  if(t.name==="base"){map.removeLayer(bases[baseAtual]); baseAtual=t.value; bases[baseAtual].addTo(map); bases[baseAtual].bringToBack();}
+  else if(t.dataset.id){var l=cam[t.dataset.id].layer; if(t.checked) l.addTo(map); else map.removeLayer(l);}
+  else if(t.id==="rot"){if(t.checked) rotulos.addTo(map); else map.removeLayer(rotulos);}
+});
+pe.addEventListener("input",function(e){
+  var id = e.target.dataset.op; if(!id) return;
+  var l = cam[id].layer; if(l.setOpacity) l.setOpacity(parseFloat(e.target.value));
+});
+pe.querySelector("#bTodos").onclick = function(){
+  Object.keys(cam).forEach(function(id){map.removeLayer(cam[id].layer);});
+  pe.querySelectorAll("input[data-id]").forEach(function(i){i.checked=false;});
+};
+pe.querySelector("#bFull").onclick = function(){
+  var el = document.documentElement;
+  if(document.fullscreenElement){document.exitFullscreen();} else if(el.requestFullscreen){el.requestFullscreen();}
+};
+
+var G = null;
+if(D.grade){
+  var bin = atob(D.grade.dados), u8 = new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  G = {w:D.grade.w,h:D.grade.h,b:D.grade.b3857,v:new Int16Array(u8.buffer)};
+}
+function altitude(ll){
+  if(!G) return null;
+  var m = merc(ll), c = Math.floor((m[0]-G.b[0])/(G.b[2]-G.b[0])*G.w), r = Math.floor((G.b[3]-m[1])/(G.b[3]-G.b[1])*G.h);
+  if(c<0||r<0||c>=G.w||r>=G.h) return null;
+  var v = G.v[r*G.w+c]; return v===-32768?null:v/10;
+}
+var elCoord = document.getElementById("coord");
+map.on("mousemove",function(e){
+  var a = altitude(e.latlng);
+  elCoord.textContent = e.latlng.lat.toFixed(5)+", "+e.latlng.lng.toFixed(5)+(a!==null?"  ·  "+a.toFixed(1)+" m (MDT)":"");
+});
+
+var modo = null, pts = [], tmp = L.layerGroup().addTo(map), fixo = L.layerGroup().addTo(map), med = document.getElementById("med");
+var ids = {reg:"#bMed",area:"#bArea",pin:"#bPin"};
+function setModo(m){
+  modo = (modo===m)?null:m; pts=[]; tmp.clearLayers();
+  Object.keys(ids).forEach(function(k){pe.querySelector(ids[k]).classList.remove("on");});
+  if(modo) pe.querySelector(ids[modo]).classList.add("on");
+  map.getContainer().style.cursor = modo?"crosshair":"";
+  med.style.display = (modo&&modo!=="pin")?"block":"none";
+  med.textContent = modo==="reg"?"Clique para medir · duplo clique encerra":(modo==="area"?"Clique nos vértices · duplo clique encerra":"");
+}
+pe.querySelector("#bMed").onclick=function(){setModo("reg");};
+pe.querySelector("#bArea").onclick=function(){setModo("area");};
+pe.querySelector("#bPin").onclick=function(){setModo("pin");};
+pe.querySelector("#bLimpa").onclick=function(){fixo.clearLayers();tmp.clearLayers();pts=[];if(!modo)med.style.display="none";};
+function dist(a){var s=0;for(var i=1;i<a.length;i++)s+=a[i-1].distanceTo(a[i]);return s;}
+function area(a){
+  if(a.length<3) return 0; var lat0=a[0].lat*Math.PI/180, s=0;
+  var p=a.map(function(l){return [R*l.lng*Math.PI/180*Math.cos(lat0),R*l.lat*Math.PI/180];});
+  for(var i=0;i<p.length;i++){var j=(i+1)%p.length; s+=p[i][0]*p[j][1]-p[j][0]*p[i][1];} return Math.abs(s)/2;}
+function fmtD(m){return m>=1000?(m/1000).toFixed(2)+" km":m.toFixed(0)+" m";}
+function fmtA(m){return m>=1e6?(m/1e6).toFixed(2)+" km²":(m/1e4).toFixed(2)+" ha";}
+var txt = "";
+function desenha(){
+  tmp.clearLayers(); if(!pts.length) return;
+  pts.forEach(function(p){L.circleMarker(p,{radius:4,color:"#ff0",weight:2,fillOpacity:1,interactive:false}).addTo(tmp);});
+  if(modo==="reg"){L.polyline(pts,{color:"#ff0",weight:3,interactive:false}).addTo(tmp); txt=fmtD(dist(pts)); med.textContent="Distância: "+txt;}
+  if(modo==="area"){L.polygon(pts,{color:"#ff0",weight:2,fillOpacity:.15,interactive:false}).addTo(tmp); txt=fmtA(area(pts)); med.textContent="Área: "+txt+" · perímetro "+fmtD(dist(pts.concat([pts[0]])));}
+}
+map.on("click",function(e){
+  if(modo==="pin"){
+    var a = altitude(e.latlng);
+    L.marker(e.latlng).bindPopup("<b>Marcador</b><br>"+e.latlng.lat.toFixed(6)+", "+e.latlng.lng.toFixed(6)+(a!==null?"<br>Altitude MDT: "+a.toFixed(1)+" m":"")).addTo(fixo).openPopup();
+  } else if(modo){ pts.push(e.latlng); desenha(); }
+  else {
+    var a2 = altitude(e.latlng);
+    L.popup().setLatLng(e.latlng).setContent("<b>"+e.latlng.lat.toFixed(5)+", "+e.latlng.lng.toFixed(5)+"</b>"+(a2!==null?"<br>Altitude do MDT pré-1981: <b>"+a2.toFixed(1)+" m</b>":(G?"<br>MDT sem dados neste ponto":""))).openOn(map);
+  }
+});
+map.on("dblclick",function(){
+  if((modo==="reg"||modo==="area") && pts.length>1){
+    var g = modo==="reg"?L.polyline(pts,{color:"#ff0",weight:3}):L.polygon(pts,{color:"#ff0",weight:2,fillOpacity:.15});
+    g.bindTooltip(txt,{permanent:true,direction:"center"}).addTo(fixo);
+    pts=[]; tmp.clearLayers();
+  }
+});
+
+if(D.grade){
+  var el3 = document.getElementById("v3d"), ren=null, scene, camera, mesh, geo, ang={th:.8,ph:1.0,d:150}, alvo, exag=3, dim;
+  var corLeg = (D.camadas.filter(function(c){return c.legenda;})[0]||{legenda:{cores:["#000","#fff"],min:0,max:1}}).legenda;
+  function hexRgb(h){return [parseInt(h.substr(1,2),16)/255,parseInt(h.substr(3,2),16)/255,parseInt(h.substr(5,2),16)/255];}
+  function cor(z){var t=Math.min(1,Math.max(0,(z-corLeg.min)/(corLeg.max-corLeg.min)))*(corLeg.cores.length-1), i=Math.min(corLeg.cores.length-2,Math.floor(t)), f=t-i, a=hexRgb(corLeg.cores[i]), b=hexRgb(corLeg.cores[i+1]);return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
+  function monta(){
+    var step = Math.max(1,Math.ceil(Math.max(G.w,G.h)/220)), w=Math.floor((G.w-1)/step)+1, h=Math.floor((G.h-1)/step)+1;
+    var largM = G.b[2]-G.b[0], altM = G.b[3]-G.b[1], k = 100/largM, lat0=(D.extensao[0][0]+D.extensao[1][0])/2, kz = 1/Math.cos(lat0*Math.PI/180);
+    var zs=[],zmin=1e9; for(var r=0;r<h;r++)for(var c=0;c<w;c++){var v=G.v[r*step*G.w+c*step]; var z=v===-32768?null:v/10; zs.push(z); if(z!==null&&z<zmin)zmin=z;}
+    geo = new THREE.PlaneBufferGeometry(100, altM*k, w-1, h-1); geo.rotateX(-Math.PI/2);
+    var pos=geo.attributes.position, cols=new Float32Array(pos.count*3);
+    dim={k:k,kz:kz,zs:zs,zmin:zmin};
+    for(var i=0;i<pos.count;i++){var z=zs[i]; var c3=z===null?[.15,.17,.2]:cor(z); cols[i*3]=c3[0];cols[i*3+1]=c3[1];cols[i*3+2]=c3[2];}
+    geo.setAttribute("color",new THREE.BufferAttribute(cols,3)); atualizaZ();
+    var mat = new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0,side:THREE.DoubleSide});
+    if(mesh) scene.remove(mesh); mesh=new THREE.Mesh(geo,mat); scene.add(mesh);
+    ang.d = 150;
+  }
+  function atualizaZ(){
+    var pos=geo.attributes.position; for(var i=0;i<pos.count;i++){var z=dim.zs[i]; pos.setY(i,((z===null?dim.zmin:z)-dim.zmin)*dim.k*dim.kz*exag);}
+    pos.needsUpdate=true; geo.computeVertexNormals();
+  }
+  function desenha3d(){
+    camera.position.set(alvo.x+ang.d*Math.sin(ang.ph)*Math.sin(ang.th), alvo.y+ang.d*Math.cos(ang.ph), alvo.z+ang.d*Math.sin(ang.ph)*Math.cos(ang.th));
+    camera.lookAt(alvo); ren.render(scene,camera);
+  }
+  function redim(){var W=el3.clientWidth,H=el3.clientHeight; ren.setSize(W,H); camera.aspect=W/H; camera.updateProjectionMatrix(); desenha3d();}
+  function cena(){
+    ren = new THREE.WebGLRenderer({antialias:true}); ren.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+    el3.insertBefore(ren.domElement, el3.firstChild);
+    scene = new THREE.Scene(); scene.background=new THREE.Color(0x10151d); alvo=new THREE.Vector3(0,0,0);
+    camera = new THREE.PerspectiveCamera(45,1,.1,2000);
+    scene.add(new THREE.HemisphereLight(0xffffff,0x334455,.75));
+    var sol=new THREE.DirectionalLight(0xffffff,.8); sol.position.set(-60,100,60); scene.add(sol);
+    var drag=null, pinch=null, cv=ren.domElement;
+    function pan(dx,dy){var s=ang.d*.002; alvo.x-=Math.cos(ang.th)*dx*s; alvo.z+=Math.sin(ang.th)*dx*s; alvo.x-=Math.sin(ang.th)*dy*s; alvo.z-=Math.cos(ang.th)*dy*s;}
+    cv.addEventListener("mousedown",function(e){drag={x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2};});
+    window.addEventListener("mouseup",function(){drag=null;});
+    window.addEventListener("mousemove",function(e){ if(!drag)return; var dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
+      if(drag.pan) pan(dx,dy); else {ang.th-=dx*.006; ang.ph=Math.min(1.5,Math.max(.1,ang.ph-dy*.006));} desenha3d();});
+    cv.addEventListener("contextmenu",function(e){e.preventDefault();});
+    cv.addEventListener("wheel",function(e){e.preventDefault(); ang.d=Math.min(600,Math.max(10,ang.d*(1+Math.sign(e.deltaY)*.1))); desenha3d();},{passive:false});
+    cv.addEventListener("touchstart",function(e){ if(e.touches.length===1)drag={x:e.touches[0].clientX,y:e.touches[0].clientY}; else if(e.touches.length===2){drag=null;pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);} },{passive:true});
+    cv.addEventListener("touchmove",function(e){ e.preventDefault();
+      if(e.touches.length===1&&drag){var dx=e.touches[0].clientX-drag.x, dy=e.touches[0].clientY-drag.y; drag.x=e.touches[0].clientX; drag.y=e.touches[0].clientY; ang.th-=dx*.006; ang.ph=Math.min(1.5,Math.max(.1,ang.ph-dy*.006));}
+      else if(e.touches.length===2&&pinch){var d2=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); ang.d=Math.min(600,Math.max(10,ang.d*pinch/d2)); pinch=d2;}
+      desenha3d();},{passive:false});
+    cv.addEventListener("touchend",function(){drag=null;pinch=null;});
+    window.addEventListener("resize",function(){ if(el3.style.display==="block")redim(); });
+  }
+  document.getElementById("b3d").onclick=function(){
+    if(typeof THREE==="undefined"){alert("Three.js não carregou (sem internet?)."); return;}
+    el3.style.display="block"; if(!ren)cena(); if(!mesh)monta(); alvo.set(0,0,0); redim();
+  };
+  document.getElementById("v3dx").onclick=function(){el3.style.display="none";};
+  document.getElementById("v3de").oninput=function(e){exag=parseFloat(e.target.value); document.getElementById("v3dv").textContent=exag+"×"; if(geo){atualizaZ();desenha3d();}};
+}
+window.__mapa = map;
+})();
+</script>
+</body>
+</html>
