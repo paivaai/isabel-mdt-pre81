@@ -25,6 +25,8 @@ jobs:
           gh release download dados --dir data --clobber || echo "Release 'dados' não encontrado: seguindo sem Landsat/NA_TD."
           ls -la data
       - name: Rodar o pipeline
+        env:
+          PYTHONUNBUFFERED: "1"
         run: |
           set -o pipefail
           mkdir -p outputs

@@ -14,6 +14,8 @@ jobs:
           cache: pip
       - run: pip install -e .
       - name: Baixar e inspecionar
+        env:
+          PYTHONUNBUFFERED: "1"
         run: python -m mdt_pre81 curvas 2>&1 | tee relatorio_ibge.txt
       - uses: actions/upload-artifact@v4
         with:
