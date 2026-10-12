@@ -37,7 +37,8 @@ jobs:
           name: resultados
           path: |
             outputs/
-            data/ibge_bruto/
+            data/curvas_cartas.gpkg
+            data/rotulagem_*.png
       - name: Commitar o webmap atualizado (docs/)
         run: |
           git config user.name "github-actions"
