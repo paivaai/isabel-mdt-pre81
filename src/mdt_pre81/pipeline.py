@@ -80,6 +80,9 @@ def etapa_landsat(cfg):
         return core.melhorar_landsat(rec, _saida(cfg, "landsat_1979_melhorado.tif"), upscale=l.get("upscale", 2),
                                      gama=l.get("gama", 0.95), saturacao=l.get("saturacao", 1.25),
                                      clahe_clip=l.get("clahe_clip", 0.004), nitidez=l.get("nitidez", 0.8))
+    # sem nova melhoria: a imagem de entrada (já melhorada) é usada como está no webmap
+    import shutil
+    shutil.copy(rec, _saida(cfg, "landsat_1979_melhorado.tif"))
     return rec
 
 

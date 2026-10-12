@@ -13,7 +13,7 @@ area:
   baixar_limites_ibge: true
 
 landsat:
-  melhorar: true
+  melhorar: false                         # false = a imagem de entrada já está melhorada (não repete)
   upscale: 2
   gama: 0.95
   saturacao: 1.25
