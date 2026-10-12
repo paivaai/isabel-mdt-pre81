@@ -48,6 +48,8 @@ def projeto(tmp_path_factory):
     nat.to_file(raiz / "data/natd/NA_TD.shp")
     cfg = yaml.safe_load(open(os.path.join(os.path.dirname(__file__), "..", "config", "projeto.yml"), encoding="utf-8"))
     cfg["entradas"]["natd"] = "data/natd/NA_TD.shp"
+    cfg["entradas"]["landsat"] = "data/landsat_1979.tif"
+    cfg["historicas"] = []
     cfg["area"]["baixar_limites_ibge"] = False
     cfg["area"]["fallback_km"] = 6
     cfg["curvas"]["crs_origem"] = "EPSG:31982"

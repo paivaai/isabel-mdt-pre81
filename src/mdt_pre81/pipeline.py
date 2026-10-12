@@ -8,7 +8,7 @@ import yaml
 from . import core, webmap
 from .ibge import baixar_curvas_ibge
 
-ETAPAS = ["aoi", "landsat", "drenagem", "curvas", "mdt", "webmap"]
+ETAPAS = ["aoi", "landsat", "drenagem", "historicas", "curvas", "mdt", "webmap"]
 
 
 def carregar_config(caminho="config/projeto.yml"):
@@ -30,6 +30,7 @@ def _p(cfg, chave):
         pasta = os.path.dirname(p)
         exts = (".tif", ".tiff") if chave == "landsat" else (".shp", ".zip", ".rar")
         cands = sorted(f for f in glob.glob(os.path.join(pasta, "*")) if f.lower().endswith(exts)
+                       and not os.path.basename(f).lower().startswith("imagem_")
                        and (chave != "natd" or "na_td" in os.path.basename(f).lower() or "natd" in os.path.basename(f).lower()))
         if cands:
             print(f"  ({chave}: usando {os.path.basename(cands[0])})")
@@ -97,6 +98,25 @@ def etapa_drenagem(cfg):
                                  area_min_px=d.get("area_min_px", 12), compr_min_px=d.get("compr_min_px", 15))
 
 
+def etapa_historicas(cfg):
+    """Imagens históricas (1967, 1973...): recorte, realce e extração do rio/drenagem de cada ano."""
+    from . import historicas
+    itens = cfg.get("historicas") or []
+    if not itens:
+        print("  Sem 'historicas' na config."); return None
+    aoi = _aoi(cfg)
+    falhas = []
+    for it in itens:
+        print(f"\n--- imagem {it.get('id')} ---", flush=True)
+        try:
+            historicas.processar_imagem(it, aoi, cfg["_base"], _saida(cfg))
+        except Exception as e:      # uma imagem com problema não derruba as outras
+            import traceback; traceback.print_exc()
+            falhas.append(f"{it.get('id')}: {type(e).__name__}: {e}")
+    if falhas:
+        raise RuntimeError("; ".join(falhas))
+
+
 def etapa_curvas(cfg):
     dest = _p(cfg, "curvas")
     if dest and os.path.exists(dest):
@@ -154,7 +174,9 @@ def etapa_webmap(cfg):
     lan = lan if os.path.exists(lan) else None
     from . import cartas as _c
     cartas = _c.camadas_cartas(os.path.join(cfg["_base"], "data", "cartas_raster"), w.get("cartas") or [])
-    kw = dict(cartas=cartas, aoi=aoi, natd=natd, drenagem=drenagem, agua=agua, curvas=curvas, mdt=mdt, landsat=lan,
+    from . import historicas as _h
+    hist = _h.carregar_resultados(cfg.get("historicas"), _saida(cfg))
+    kw = dict(historicas=hist, cartas=cartas, aoi=aoi, natd=natd, drenagem=drenagem, agua=agua, curvas=curvas, mdt=mdt, landsat=lan,
               wms=w.get("wms") or [], titulo=w.get("titulo", "Projeto Isabel — MDT pré-1981"), resumo=w.get("resumo", ""))
     pasta = os.path.normpath(os.path.join(cfg["_base"], w.get("pasta_site", "docs")))
     out = [webmap.build_webmap(pasta, modo="site", **kw)]
@@ -169,7 +191,7 @@ def etapa_cartas(cfg):
     _c.inspecionar_cartas(os.path.join(cfg["_base"], "data", "cartas_raster"))
 
 
-FUNCOES = dict(cartas=etapa_cartas, aoi=etapa_aoi, landsat=etapa_landsat, drenagem=etapa_drenagem, curvas=etapa_curvas,
+FUNCOES = dict(cartas=etapa_cartas, historicas=etapa_historicas, aoi=etapa_aoi, landsat=etapa_landsat, drenagem=etapa_drenagem, curvas=etapa_curvas,
                mdt=etapa_mdt, webmap=etapa_webmap)
 
 

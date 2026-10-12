@@ -84,6 +84,8 @@ def _raster_landsat(tif, max_px=2400):
         arr = s.read(out_shape=(s.count, s.height // f, s.width // f), resampling=Resampling.average).astype("float32")
         tr = s.transform * rasterio.Affine.scale(f, f)
         crs = s.crs
+    if arr.shape[0] < 3:
+        arr = np.repeat(arr[:1], 3, axis=0)
     rgb = arr[:3]
     alfa = (np.any(rgb > 0, axis=0)).astype("float32") * 255
     out, bounds, _, _ = _warp(np.concatenate([rgb, alfa[None]]), tr, crs, max_px=max_px)
@@ -128,7 +130,7 @@ def _raster_mdt(dem, transform, res, crs=CRS_ALVO, max_px=2000, grade_px=500):
 
 # ------------------------------------------------------------------ construção
 def montar_dados(aoi=None, natd=None, drenagem=None, agua=None, curvas=None, mdt=None, landsat=None,
-                 wms=None, titulo="Projeto Isabel — MDT pré-1981", resumo=None, cartas=None):
+                 wms=None, titulo="Projeto Isabel — MDT pré-1981", resumo=None, cartas=None, historicas=None):
     """Retorna (dados_dict, arquivos_png {nome: bytes}). Rasters ficam como 'arquivo' (resolvido depois)."""
     dados = dict(titulo=titulo, resumo=resumo or "", camadas=[], wms=wms or [])
     arquivos = {}
@@ -149,6 +151,21 @@ def montar_dados(aoi=None, natd=None, drenagem=None, agua=None, curvas=None, mdt
                                          legenda=leg))
             dados["grade"] = grade
             dados["mdt_bounds"] = b
+    for h in historicas or []:
+        hid = h["id"]
+        png, b = _raster_landsat(h["tif"])
+        arquivos[f"imagem_{hid}.png"] = png
+        dados["camadas"].append(dict(id=f"img{hid}", rotulo=f"Imagem {h['rotulo']}", tipo="raster",
+                                     arquivo=f"imagem_{hid}.png", bounds=b, ligado=False, opacidade=1.0))
+    for h in historicas or []:
+        hid, cor = h["id"], h.get("cor", "#ffd60a")
+        if h.get("agua") is not None and len(h["agua"]):
+            dados["camadas"].append(dict(id=f"agua{hid}", rotulo=f"Rio/água {h['rotulo']}", tipo="geojson",
+                                         geojson=_gj(h["agua"], 20), estilo=dict(color=cor, weight=1.2, fillColor=cor,
+                                                                              fillOpacity=0.35), ligado=True))
+        if h.get("drenagem") is not None and len(h["drenagem"]):
+            dados["camadas"].append(dict(id=f"dren{hid}", rotulo=f"Drenagem {h['rotulo']}", tipo="geojson",
+                                         geojson=_gj(h["drenagem"], 20), estilo=dict(color=cor, weight=1.8), ligado=True))
     for i, (rot, png, b) in enumerate(cartas or []):
         nome = f"carta_{i}.png"
         arquivos[nome] = png

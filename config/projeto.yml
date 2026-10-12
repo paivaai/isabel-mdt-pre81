@@ -1,6 +1,6 @@
 # Configuração do projeto. Caminhos relativos à raiz do repositório.
 entradas:
-  landsat: data/landsat_1979.tif          # cena Landsat 2 MSS (ago/1979) em GeoTIFF
+  landsat: data/LM02_melhorada_UTM.tif          # cena Landsat 2 MSS (ago/1979) em GeoTIFF
   natd: data/NA_TD_TOTAL.zip              # .shp, .zip ou .rar (áreas de referência ao longo do rio)
   curvas: data/curvas_cartas.gpkg         # curvas das cartas antigas (campo 'cota'); se não existir, baixa do IBGE
   pontos: null                            # pontos cotados opcionais (campo numérico de cota)
@@ -25,6 +25,13 @@ drenagem:
   ajuste_limiar: 1.0
   area_min_px: 12
   compr_min_px: 15
+
+# Imagens históricas: extrai o rio/drenagem de cada ano e plota no webmap (imagem, água e linhas, desligáveis).
+# crs: deixe null se o TIF já é georreferenciado; para TIFF + .tfw sem CRS informe (ex.: "EPSG:31982", "EPSG:22522")
+# ou deixe null para deduzir pela AOI (confira no log).
+historicas:
+  - {id: "1973", rotulo: "1973", arquivo: data/IMAGEM_1973_A.tif, crs: null, cor: "#ffd60a", px_max: 7000}
+  - {id: "1967", rotulo: "1967", arquivo: data/IMAGEM_67_Bebel.tif, crs: null, cor: "#ff7b00", px_max: 7000}
 
 curvas:
   baixar_ibge: true                       # tenta cartas vetoriais 1:50.000 do IBGE se o arquivo acima não existir

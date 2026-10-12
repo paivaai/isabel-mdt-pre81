@@ -204,7 +204,7 @@ def melhorar_landsat(entrada, saida, bandas=(1, 2, 3), upscale=2, p_min=1, p_max
 
 
 def extrair_drenagem(entrada, pasta, modo="todas", ajuste_limiar=1.0, area_min_px=12, fechar_px=1,
-                     agua_larga_px=3, esporao_min_px=8, compr_min_px=15):
+                     agua_larga_px=3, esporao_min_px=8, compr_min_px=15, rotulo="1979", poligono="larga"):
     """Água (pixels escuros em todas as bandas) -> esqueleto -> linhas de drenagem + polígonos de água."""
     from skan import Skeleton, summarize
     from shapely.geometry import LineString, shape
@@ -272,22 +272,23 @@ def extrair_drenagem(entrada, pasta, modo="todas", ajuste_limiar=1.0, area_min_p
                           geometry=linhas, crs=crs)
     print(f"Drenagem: {len(gl)} linhas | {gl['comp_m'].sum()/1000:.1f} km "
           f"(fora de água larga: {gl.loc[~gl['em_reservatorio'], 'comp_m'].sum()/1000:.1f} km)")
-    polis = [shape(g) for g, v in features.shapes(larga.astype("uint8"), mask=larga, transform=transform) if v == 1]
+    pm = agua if poligono == "toda" else larga       # "toda": todo o corpo d'água (rio antes do alagamento)
+    polis = [shape(g) for g, v in features.shapes(pm.astype("uint8"), mask=pm, transform=transform) if v == 1]
     ga = gpd.GeoDataFrame(geometry=polis, crs=crs)
     if len(ga):
         ga = ga.dissolve().explode(index_parts=False).reset_index(drop=True)
         ga["area_km2"] = (ga.geometry.area / 1e6).round(3)
     os.makedirs(pasta, exist_ok=True)
-    gpkg = os.path.join(pasta, "drenagem_1979.gpkg")
+    gpkg = os.path.join(pasta, f"drenagem_{rotulo}.gpkg")
     if os.path.exists(gpkg):
         os.remove(gpkg)
     gl.to_file(gpkg, layer="drenagem", driver="GPKG")
     if len(ga):
         ga.to_file(gpkg, layer="agua", driver="GPKG")
     shp = os.path.join(pasta, "shp"); shutil.rmtree(shp, ignore_errors=True); os.makedirs(shp)
-    gl.to_file(os.path.join(shp, "drenagem_1979.shp"))
-    shutil.make_archive(os.path.join(pasta, "drenagem_1979_shp"), "zip", shp)
-    print("Drenagem 1979:", gpkg)
+    gl.to_file(os.path.join(shp, f"drenagem_{rotulo}.shp"))
+    shutil.make_archive(os.path.join(pasta, f"drenagem_{rotulo}_shp"), "zip", shp)
+    print(f"Drenagem {rotulo}:", gpkg)
     return gl.to_crs(CRS_ALVO), (ga.to_crs(CRS_ALVO) if len(ga) else ga)
 
 
