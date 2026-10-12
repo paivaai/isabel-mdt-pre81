@@ -103,7 +103,8 @@ def etapa_curvas(cfg):
         print("Curvas já disponíveis:", dest); return dest
     if cfg["curvas"].get("baixar_ibge", True) and dest:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        baixar_curvas_ibge(dest=os.path.join(os.path.dirname(dest), "ibge_bruto"), saida_gpkg=dest)
+        baixar_curvas_ibge(dest=os.path.join(os.path.dirname(dest), "ibge_bruto"), saida_gpkg=dest,
+                           crs_dgn=cfg["curvas"].get("crs_origem") or "EPSG:22522", rotular=cfg["curvas"].get("rotular", True))
         return dest if os.path.exists(dest) else None
     print("Sem curvas: coloque-as em", dest); return None
 

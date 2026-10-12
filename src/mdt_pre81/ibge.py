@@ -27,6 +27,8 @@ BASE = os.environ.get(
 # folhas já conhecidas (pasta = nome + código MI). Outras são procuradas pelas palavras abaixo.
 FOLHAS = ["buritama26322", "avanhandava26333", "birigui26323", "aracatuba26321"]
 PROCURAR = ["zacarias", "brejo", "penapolis", "bilac", "gabriel"]
+# folhas vizinhas pelo código MI (sufixo da pasta): leste de Buritama (2633-1/2) e norte (2631/2632 ao norte)
+CODIGOS_EXTRA = ["26331", "26332", "26334", "26311", "26312", "26313", "26314"]
 TEMAS = ["hp", "hd"]            # hp = hipsografia (curvas de nível) | hd = hidrografia
 DEST = os.environ.get("DEST", "/content/ibge_curvas")
 SAIDA_GPKG = os.environ.get("SAIDA_GPKG", "/content/curvas_cartas.gpkg")
@@ -63,6 +65,11 @@ def descobrir_folhas():
                 if p in n.lower() and n not in folhas:
                     folhas.append(n)
                     print(f"  + folha encontrada pela palavra '{p}': {n}")
+        for cod in CODIGOS_EXTRA:
+            for n in todas:
+                if n.endswith(cod) and n not in folhas:
+                    folhas.append(n)
+                    print(f"  + folha vizinha pelo código MI {cod}: {n}")
         faltam = [f for f in FOLHAS if f not in todas]
         if faltam:
             print("  ! não achei no índice:", faltam)
@@ -162,8 +169,10 @@ def achar_cota(g):
     return None, "nenhum campo de altitude e sem Z"
 
 
-def baixar_curvas_ibge(dest=None, saida_gpkg=None):
-    """Baixa, inspeciona e consolida as curvas das folhas do IBGE em um GeoPackage."""
+def baixar_curvas_ibge(dest=None, saida_gpkg=None, crs_dgn="EPSG:22522", rotular=True):
+    """Baixa, inspeciona e consolida as curvas das folhas do IBGE em um GeoPackage.
+    Se as curvas vierem sem altitude (caso das cartas DGN do IBGE), rotula automaticamente (rotular.py).
+    crs_dgn: datum ORIGINAL das cartas (DGN em km UTM 22S): Córrego Alegre EPSG:22522 (padrão) ou SAD69 EPSG:29192."""
     global DEST, SAIDA_GPKG
     if dest:
         DEST = dest
@@ -229,10 +238,47 @@ def baixar_curvas_ibge(dest=None, saida_gpkg=None):
         for folha, n, motivo in sem_cota:
             print(f"    - {folha}: {n} linhas de hipsografia ({motivo})")
         if textos:
-            print(f"    - Há {textos} textos numéricos (provavelmente as cotas impressas nas curvas mestras).")
-        print("  => COLE ESTE RELATÓRIO NA CONVERSA: com a estrutura real eu monto a rotulagem automática")
-        print("     (cotas dos textos -> curvas mestras -> curvas intermediárias).")
-        print("  Alternativa: as cartas matriciais (escaneadas) estão em .../folhas_topograficas/matriciais/ .")
+            print(f"    - Há {textos} textos numéricos (as cotas impressas nas curvas mestras).")
+        if rotular and textos:
+            rotular_dgns(crs_dgn)
+        else:
+            print("  Alternativa: as cartas matriciais (escaneadas) estão em .../folhas_topograficas/matriciais/ .")
+
+
+def rotular_dgns(crs_dgn="EPSG:22522"):
+    """Rotulagem automática das curvas (DGN 'hp' sem altitude) -> SAIDA_GPKG + PNG de conferência por folha."""
+    from . import rotular as R
+    print("\n" + "=" * 72, "\n5) ROTULAGEM AUTOMÁTICA DAS CURVAS\n" + "=" * 72)
+    print(f"  DGN em km (UTM 22S), datum assumido: {crs_dgn}. Âncoras = textos 350/400/450 colados nas curvas mestras.")
+    dgns = sorted(glob.glob(os.path.join(DEST, "**", "*hp", "*.dgn"), recursive=True))
+    partes, resumo = [], []
+    for dgn in dgns:
+        folha = os.path.basename(os.path.dirname(os.path.dirname(dgn)))
+        try:
+            g, info = R.rotular_folha_m3(dgn, verbose=True)
+        except Exception as e:
+            print(f"  ! {os.path.basename(dgn)}: não rotulada ({type(e).__name__}: {str(e)[:100]})")
+            continue
+        g["folha"] = folha
+        png = os.path.join(os.path.dirname(SAIDA_GPKG) or ".", f"rotulagem_{folha}.png")
+        try:
+            R.png_conferencia(g, png, f"{folha} | equidistância {info['delta']:.2f} m")
+        except Exception:
+            pass
+        partes.append(g)
+        resumo.append((folha, info["delta"], info["pct_firmes"], len(g)))
+    if not partes:
+        print("  Nenhuma folha pôde ser rotulada."); return None
+    todas = pd.concat(partes, ignore_index=True)
+    firmes = todas[todas.confianca >= 2].copy()
+    firmes = gpd.GeoDataFrame(firmes[["cota", "confianca", "nivel", "folha", "geometry"]], geometry="geometry", crs=crs_dgn)
+    firmes.to_file(SAIDA_GPKG, driver="GPKG")
+    print("\n  RESUMO POR FOLHA:")
+    for folha, d, pf, n in resumo:
+        print(f"    {folha:<18} equidistância {d:5.2f} m | {pf:3.0f}% das {n} curvas com valor firme")
+    print(f"\n  OK: {len(firmes)} curvas com cota salvas em {SAIDA_GPKG} (cotas {firmes.cota.min():.0f} a {firmes.cota.max():.0f} m)")
+    print("  Curvas ambíguas (confiança baixa) ficam FORA do MDT; veja os PNG rotulagem_*.png (pontilhado magenta).")
+    return firmes
 
 
 if __name__ == "__main__":
