@@ -20,10 +20,17 @@ jobs:
       - name: Baixar dados do Release "dados"
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download dados --dir data --clobber
+        run: |
+          mkdir -p data
+          gh release download dados --dir data --clobber || echo "Release 'dados' não encontrado: seguindo sem Landsat/NA_TD."
+          ls -la data
       - name: Rodar o pipeline
-        run: python -m mdt_pre81 all 2>&1 | tee outputs/log.txt
+        run: |
+          set -o pipefail
+          mkdir -p outputs
+          python -m mdt_pre81 all 2>&1 | tee outputs/log.txt
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: resultados
           path: outputs/
