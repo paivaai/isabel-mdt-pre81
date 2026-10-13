@@ -8,7 +8,7 @@ import yaml
 from . import core, webmap
 from .ibge import baixar_curvas_ibge
 
-ETAPAS = ["aoi", "landsat", "drenagem", "historicas", "curvas", "mdt", "webmap"]
+ETAPAS = ["aoi", "landsat", "drenagem", "curvas", "hidrografia", "historicas", "mdt", "webmap"]
 
 
 def carregar_config(caminho="config/projeto.yml"):
@@ -98,6 +98,49 @@ def etapa_drenagem(cfg):
                                  area_min_px=d.get("area_min_px", 12), compr_min_px=d.get("compr_min_px", 15))
 
 
+def _gp_hidro(cfg):
+    return os.path.normpath(os.path.join(cfg["_base"], cfg["entradas"].get("hidro_ibge") or "data/hidrografia_ibge.gpkg"))
+
+
+def etapa_hidrografia(cfg):
+    """Hidrografia original das cartas IBGE (hd, pré-1981) + hidrografia da ANA (BHO) na AOI. Guia do traçado histórico."""
+    from . import ibge, ana
+    gp = _gp_hidro(cfg)
+    dest = os.path.join(os.path.dirname(gp), "ibge_bruto")
+    erros = []
+    if not cfg["curvas"].get("baixar_ibge", True) and not os.path.exists(dest):
+        print("  baixar_ibge=false e sem arquivos locais: hidrografia pulada."); return None
+    try:
+        ibge.hidrografia_ibge(dest=dest, saida_gpkg=gp, crs_dgn=cfg["curvas"].get("crs_origem") or "EPSG:22522")
+    except Exception as e:
+        import traceback; traceback.print_exc(); erros.append(f"IBGE hd: {type(e).__name__}: {e}")
+    try:
+        ana.baixar_bho(_aoi(cfg), os.path.join(os.path.dirname(gp), "ana_bho.gpkg"),
+                       os.path.join(os.path.dirname(gp), "ana_inventario.txt"))
+    except Exception as e:
+        import traceback; traceback.print_exc(); erros.append(f"ANA: {type(e).__name__}: {e}")
+    if erros:
+        raise RuntimeError("; ".join(erros))
+
+
+def _ler_hidro(cfg):
+    """(linhas, polígonos) da hidrografia IBGE em EPSG:31982, ou (None, None)."""
+    gp = _gp_hidro(cfg)
+    if not os.path.exists(gp):
+        return None, None
+    L = gpd.read_file(gp, layer="linhas").to_crs(core.CRS_ALVO)
+    try:
+        P = gpd.read_file(gp, layer="poligonos").to_crs(core.CRS_ALVO)
+    except Exception:
+        P = None
+    return L, P
+
+
+def _ler_ana(cfg):
+    p = os.path.join(os.path.dirname(_gp_hidro(cfg)), "ana_bho.gpkg")
+    return gpd.read_file(p).to_crs(core.CRS_ALVO) if os.path.exists(p) else None
+
+
 def etapa_historicas(cfg):
     """Imagens históricas (1967, 1973...): recorte, realce e extração do rio/drenagem de cada ano."""
     from . import historicas
@@ -106,11 +149,14 @@ def etapa_historicas(cfg):
         print("  Sem 'historicas' na config."); return None
     aoi = _aoi(cfg)
     natd = _natd(cfg)
+    hidro, hpol = _ler_hidro(cfg)
+    if hidro is not None:
+        print(f"  guia: hidrografia IBGE pré-1981 ({len(hidro)} linhas)")
     falhas = []
     for it in itens:
         print(f"\n--- imagem {it.get('id')} ---", flush=True)
         try:
-            historicas.processar_imagem(it, aoi, cfg["_base"], _saida(cfg), natd)
+            historicas.processar_imagem(it, aoi, cfg["_base"], _saida(cfg), natd, hidro, hpol)
         except Exception as e:      # uma imagem com problema não derruba as outras
             import traceback; traceback.print_exc()
             falhas.append(f"{it.get('id')}: {type(e).__name__}: {e}")
@@ -176,8 +222,10 @@ def etapa_webmap(cfg):
     from . import cartas as _c
     cartas = _c.camadas_cartas(os.path.join(cfg["_base"], "data", "cartas_raster"), w.get("cartas") or [])
     from . import historicas as _h
+    hidro, hpol = _ler_hidro(cfg)
+    ana_g = _ler_ana(cfg)
     hist = _h.carregar_resultados(cfg.get("historicas"), _saida(cfg))
-    kw = dict(historicas=hist, cartas=cartas, aoi=aoi, natd=natd, drenagem=drenagem, agua=agua, curvas=curvas, mdt=mdt, landsat=lan,
+    kw = dict(hidro_ibge=(hidro, hpol), ana=ana_g, historicas=hist, cartas=cartas, aoi=aoi, natd=natd, drenagem=drenagem, agua=agua, curvas=curvas, mdt=mdt, landsat=lan,
               wms=w.get("wms") or [], titulo=w.get("titulo", "Projeto Isabel — MDT pré-1981"), resumo=w.get("resumo", ""))
     pasta = os.path.normpath(os.path.join(cfg["_base"], w.get("pasta_site", "docs")))
     out = [webmap.build_webmap(pasta, modo="site", **kw)]
@@ -192,7 +240,7 @@ def etapa_cartas(cfg):
     _c.inspecionar_cartas(os.path.join(cfg["_base"], "data", "cartas_raster"))
 
 
-FUNCOES = dict(cartas=etapa_cartas, historicas=etapa_historicas, aoi=etapa_aoi, landsat=etapa_landsat, drenagem=etapa_drenagem, curvas=etapa_curvas,
+FUNCOES = dict(hidrografia=etapa_hidrografia, cartas=etapa_cartas, historicas=etapa_historicas, aoi=etapa_aoi, landsat=etapa_landsat, drenagem=etapa_drenagem, curvas=etapa_curvas,
                mdt=etapa_mdt, webmap=etapa_webmap)
 
 

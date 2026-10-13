@@ -140,7 +140,7 @@ def _raster_mdt(dem, transform, res, crs=CRS_ALVO, max_px=2000, grade_px=500):
 
 # ------------------------------------------------------------------ construção
 def montar_dados(aoi=None, natd=None, drenagem=None, agua=None, curvas=None, mdt=None, landsat=None,
-                 wms=None, titulo="Projeto Isabel — MDT pré-1981", resumo=None, cartas=None, historicas=None):
+                 wms=None, titulo="Projeto Isabel — MDT pré-1981", resumo=None, cartas=None, historicas=None, hidro_ibge=None, ana=None):
     """Retorna (dados_dict, arquivos_png {nome: bytes}). Rasters ficam como 'arquivo' (resolvido depois)."""
     dados = dict(titulo=titulo, resumo=resumo or "", camadas=[], wms=wms or [])
     arquivos = {}
@@ -161,6 +161,17 @@ def montar_dados(aoi=None, natd=None, drenagem=None, agua=None, curvas=None, mdt
                                          legenda=leg))
             dados["grade"] = grade
             dados["mdt_bounds"] = b
+    if hidro_ibge is not None and hidro_ibge[0] is not None and len(hidro_ibge[0]):
+        L, P = hidro_ibge
+        dados["camadas"].append(dict(id="hidro_ibge", rotulo="Hidrografia das cartas IBGE (pré-1981)", tipo="geojson",
+                                     geojson=_gj(L, 10), estilo=dict(color="#1d4ed8", weight=1.4), ligado=True))
+        if P is not None and len(P):
+            dados["camadas"].append(dict(id="hidro_ibge_pol", rotulo="Rio/lagoas das cartas IBGE (pré-1981)", tipo="geojson",
+                                         geojson=_gj(P, 10), estilo=dict(color="#1d4ed8", weight=1, fillColor="#3b82f6",
+                                                                      fillOpacity=0.35), ligado=True))
+    if ana is not None and len(ana):
+        dados["camadas"].append(dict(id="ana", rotulo="Hidrografia ANA (BHO)", tipo="geojson", geojson=_gj(ana, 10),
+                                     estilo=dict(color="#a21caf", weight=1.6, dashArray="5 3"), ligado=True))
     for h in historicas or []:
         hid = h["id"]
         png, b = _raster_landsat(h["tif"])

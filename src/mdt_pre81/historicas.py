@@ -86,7 +86,7 @@ def recortar_imagem(arq, aoi, saida_tif, crs=None, px_max=7000):
     return saida_tif, dict(px=px, util=util, crs=crs_src.to_string())
 
 
-def processar_imagem(item, aoi, base, saida, natd=None):
+def processar_imagem(item, aoi, base, saida, natd=None, hidro=None, hpol=None):
     """item: {id, rotulo, arquivo, crs?, cor?, px_max?, modo?, ajuste_limiar?, area_min_px?, compr_min_px?}"""
     hid = str(item["id"])
     arq = os.path.normpath(os.path.join(base, item["arquivo"]))
@@ -103,6 +103,19 @@ def processar_imagem(item, aoi, base, saida, natd=None):
         mascara = g.buffer(km * 1000).intersection(aoi)
         semente = g.buffer(float(item.get("semente_m", 300))).intersection(aoi)
         print(f"  corredor de busca: NA_TD + {km:g} km")
+    guia_m = float(item.get("guia_m", 350))
+    if hidro is not None and len(hidro) and guia_m > 0 and item.get("usar_guia", True):
+        # hidrografia ORIGINAL da carta (pré-81) como guia: busca só a ±guia_m dela; rio principal (nível 2) = semente
+        gl_ = shapely.union_all(hidro.geometry.values).buffer(guia_m).intersection(aoi)
+        rio = [hidro[hidro["nivel"] == 2].geometry.values]
+        if hpol is not None and len(hpol):
+            rio.append(hpol[hpol["nivel"] == 2].geometry.values)
+        rio_g = shapely.union_all(np.concatenate(rio)) if sum(len(r) for r in rio) else None
+        extra = shapely.union_all(natd.geometry.values).buffer(500) if natd is not None and len(natd) else None
+        mascara = shapely.union_all([x for x in (gl_, extra) if x is not None]).intersection(aoi)
+        sem = [x.buffer(300) for x in (rio_g, shapely.union_all(natd.geometry.values) if natd is not None and len(natd) else None) if x is not None]
+        semente = shapely.union_all(sem).intersection(aoi) if sem else None
+        print(f"  guia: hidrografia IBGE pré-81 (±{guia_m:g} m) | semente = rio principal + NA_TD")
     if item.get("metodo", "tracado") == "tracado":
         from . import tracado
         gl, ga = tracado.extrair_tracado(

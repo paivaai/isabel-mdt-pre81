@@ -53,12 +53,8 @@ webmap:
   resumo: "Landsat 1979, drenagem e MDT derivado de cartas topográficas antigas, sobre imagem atual."
   pasta_site: docs                        # publicado pelo GitHub Pages
   standalone: true                        # também gera outputs/webmap_standalone.html (arquivo único)
-  # Camadas WMS (DESLIGADAS por padrão; ligue no painel). BDGEx = Exército (DSG), para bater com a base do IBGE.
-  # ATENÇÃO: o serviço não informa o ano de cada folha: confira a data de edição na legenda da carta.
-  wms:
-    - {nome: "BDGEx – Carta Topográfica 1:50.000 (Exército)", url: "https://bdgex.eb.mil.br/teogc/50/terraogcmed.cgi", layers: "ctm", versao: "1.1.1", atribuicao: "BDGEx/DSG – Exército Brasileiro"}
-    - {nome: "BDGEx – Carta Topográfica 1:25.000 (Exército)", url: "https://bdgex.eb.mil.br/teogc/25/terraogcmed.cgi", layers: "ctm", versao: "1.1.1", atribuicao: "BDGEx/DSG – Exército Brasileiro"}
-    - {nome: "BDGEx – Carta Topográfica 1:100.000 (Exército)", url: "https://bdgex.eb.mil.br/teogc/100/terraogcmed.cgi", layers: "ctm", versao: "1.1.1", atribuicao: "BDGEx/DSG – Exército Brasileiro"}
+  # Camadas WMS opcionais (desligadas). BDGEx removido: não exibia (o diagnóstico fica em data/ana_inventario.txt).
+  wms: []
   # Cartas escaneadas (PDF/TIF) sem georreferência: informe crs e bounds [Emin, Nmin, Emax, Nmax] do desenho.
   # As que já vierem georreferenciadas (GeoTIFF/GeoPDF) entram sozinhas. Ex.:
   # cartas: [{nome: "Buritama MI 2633-2", arquivo: data/cartas_raster/buritama.pdf, crs: "EPSG:22522", bounds: [E0, N0, E1, N1]}]

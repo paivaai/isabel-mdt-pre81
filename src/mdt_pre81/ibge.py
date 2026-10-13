@@ -281,5 +281,53 @@ def rotular_dgns(crs_dgn="EPSG:22522"):
     return firmes
 
 
+def hidrografia_ibge(dest=None, saida_gpkg=None, crs_dgn="EPSG:22522"):
+    """Hidrografia ORIGINAL das cartas (DGN 'hd', pré-1981) -> GPKG com camadas 'linhas' e 'poligonos' (CRS da carta)."""
+    global DEST
+    from shapely.geometry import LineString
+    dest = dest or DEST
+    DEST = dest
+    dgns = sorted(glob.glob(os.path.join(dest, "**", "*hd", "*.dgn"), recursive=True))
+    if not dgns:
+        for f in descobrir_folhas():
+            baixar_folha(f)
+        dgns = sorted(glob.glob(os.path.join(dest, "**", "*hd", "*.dgn"), recursive=True))
+    if not dgns:
+        print("  Sem DGN de hidrografia (hd) das cartas IBGE: camada pulada."); return None
+    ruido = {22, 53, 61, 63}                      # moldura, grade, textos
+    lin, pol = [], []
+    for dgn in dgns:
+        g = None
+        for enc in (None, "latin-1"):
+            try:
+                g = gpd.read_file(dgn, **({"encoding": enc} if enc else {})); break
+            except Exception:
+                continue
+        if g is None:
+            print("  ! não li", dgn); continue
+        folha = os.path.basename(os.path.dirname(os.path.dirname(dgn)))
+        import shapely
+        g["geometry"] = shapely.transform(g.geometry.values, lambda a: a * 1000.0)     # DGN em km
+        for geo, lv in zip(g.geometry, g["Level"]):
+            if geo is None or int(lv) in ruido or geo.geom_type == "Point":
+                continue
+            if geo.geom_type == "Polygon":
+                pol.append(dict(nivel=int(lv), folha=folha, geometry=geo))
+                continue
+            for p in ([geo] if geo.geom_type == "LineString" else list(getattr(geo, "geoms", []))):
+                if p.geom_type == "LineString" and p.length > 20:
+                    lin.append(dict(nivel=int(lv), folha=folha, geometry=LineString(p.coords)))
+    L = gpd.GeoDataFrame(lin, geometry="geometry", crs=crs_dgn)
+    P = gpd.GeoDataFrame(pol, geometry="geometry", crs=crs_dgn)
+    os.makedirs(os.path.dirname(saida_gpkg) or ".", exist_ok=True)
+    if os.path.exists(saida_gpkg):
+        os.remove(saida_gpkg)
+    L.to_file(saida_gpkg, layer="linhas", driver="GPKG")
+    if len(P):
+        P.to_file(saida_gpkg, layer="poligonos", driver="GPKG")
+    print(f"Hidrografia IBGE (pré-1981): {len(L)} linhas ({L.length.sum()/1000:.0f} km), {len(P)} polígonos, {len(dgns)} folhas -> {saida_gpkg}")
+    return L, P
+
+
 if __name__ == "__main__":
     baixar_curvas_ibge()

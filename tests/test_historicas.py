@@ -41,3 +41,20 @@ def test_gj_poligono_invalido():
     gravata = Polygon([(500000, 7600000), (500100, 7600100), (500100, 7600000), (500000, 7600100)])
     r = _gj(gpd.GeoDataFrame({"a": [1]}, geometry=[gravata], crs="EPSG:31982"), 20)
     assert r and len(r["features"]) == 1
+
+
+def test_guia_hidrografia_ibge_e_camadas(projeto):
+    import geopandas as gpd
+    from shapely.geometry import LineString, Polygon
+    rio = LineString([(X0 + 8000 + 400 * np.sin(i / 30), Y0 + 18000 - i * 30) for i in range(0, 600, 5)])
+    gpd.GeoDataFrame({"nivel": [2, 7], "folha": ["t", "t"]}, geometry=[rio, rio.parallel_offset(2500, "left")],
+                     crs="EPSG:31982").to_file(projeto / "data/hidrografia_ibge.gpkg", layer="linhas", driver="GPKG")
+    gpd.GeoDataFrame({"nivel": [2], "folha": ["t"]}, geometry=[rio.buffer(60)], crs="EPSG:31982").to_file(
+        projeto / "data/hidrografia_ibge.gpkg", layer="poligonos", driver="GPKG")
+    cfg = yaml.safe_load(open(projeto / "config/projeto.yml", encoding="utf-8"))
+    cfg["historicas"] = [dict(id="1973", rotulo="1973", arquivo="data/h73.tif", cor="#ffd60a")]
+    cfg["entradas"]["hidro_ibge"] = "data/hidrografia_ibge.gpkg"
+    yaml.safe_dump(cfg, open(projeto / "config/projeto.yml", "w", encoding="utf-8"), allow_unicode=True)
+    executar(["historicas", "webmap"], str(projeto / "config/projeto.yml"))
+    html = (projeto / "outputs/webmap_standalone.html").read_text(encoding="utf-8")
+    assert "Hidrografia das cartas IBGE" in html

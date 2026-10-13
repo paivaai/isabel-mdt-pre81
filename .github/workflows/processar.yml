@@ -48,6 +48,9 @@ jobs:
             data/curvas_cartas.gpkg
             data/rotulagem_*.png
             data/cartas_raster/inventario.txt
+            data/hidrografia_ibge.gpkg
+            data/ana_bho.gpkg
+            data/ana_inventario.txt
       - name: Commitar o webmap atualizado (docs/)
         run: |
           git config user.name "github-actions"
