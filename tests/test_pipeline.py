@@ -37,7 +37,7 @@ def test_webmap_site_dados(projeto):
     js = (projeto / "site/assets/dados.js").read_text(encoding="utf-8")
     d = json.loads(js[len("window.DADOS="):-1])
     ids = [c["id"] for c in d["camadas"]]
-    assert {"landsat", "mdt", "drenagem", "natd", "aoi"} <= set(ids)
+    assert {"landsat", "mdt", "natd", "aoi"} <= set(ids) and "drenagem" not in ids
     assert d["grade"]["w"] > 10
     for c in d["camadas"]:
         if c["tipo"] == "raster":

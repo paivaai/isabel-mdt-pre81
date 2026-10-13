@@ -225,6 +225,8 @@ def etapa_webmap(cfg):
     hidro, hpol = _ler_hidro(cfg)
     ana_g = _ler_ana(cfg)
     hist = _h.carregar_resultados(cfg.get("historicas"), _saida(cfg))
+    if not w.get("mostrar_drenagem_1979", False):      # drenagem/água Landsat 1979 fora do webmap (decisão do projeto)
+        drenagem = agua = None
     kw = dict(hidro_ibge=(hidro, hpol), ana=ana_g, historicas=hist, cartas=cartas, aoi=aoi, natd=natd, drenagem=drenagem, agua=agua, curvas=curvas, mdt=mdt, landsat=lan,
               wms=w.get("wms") or [], titulo=w.get("titulo", "Projeto Isabel — MDT pré-1981"), resumo=w.get("resumo", ""))
     pasta = os.path.normpath(os.path.join(cfg["_base"], w.get("pasta_site", "docs")))

@@ -96,6 +96,9 @@ def processar_imagem(item, aoi, base, saida, natd=None, hidro=None, hpol=None):
     pasta = os.path.join(saida, f"hist_{hid}")
     rec, info = recortar_imagem(arq, aoi, os.path.join(pasta, f"recorte_{hid}.tif"), item.get("crs"),
                                 int(item.get("px_max", 7000)))
+    if not item.get("tracar", False):                # só a imagem (sem extração de drenagem)
+        print(f"  imagem {hid}: recorte pronto (sem extração de drenagem, tracar=false)")
+        return dict(id=hid, gl=None, ga=None, info=info)
     mascara = semente = None
     km = float(item.get("corredor_km", 3))
     if natd is not None and len(natd) and km > 0:   # procura só ao longo das áreas NA_TD (+ corredor)
@@ -142,13 +145,16 @@ def carregar_resultados(itens, saida):
         hid = str(it["id"])
         pasta = os.path.join(saida, f"hist_{hid}")
         tif, gp = os.path.join(pasta, f"recorte_{hid}.tif"), os.path.join(pasta, f"drenagem_{hid}.gpkg")
-        if not (os.path.exists(tif) and os.path.exists(gp)):
-            print(f"  (webmap) imagem {hid}: sem resultados em {pasta}")
+        if not os.path.exists(tif):
+            print(f"  (webmap) imagem {hid}: sem recorte em {pasta}")
             continue
-        try:
-            ag = gpd.read_file(gp, layer="agua")
-        except Exception:
-            ag = None
+        ag = dren = None
+        if it.get("tracar", False) and os.path.exists(gp):
+            dren = gpd.read_file(gp, layer="drenagem")
+            try:
+                ag = gpd.read_file(gp, layer="agua")
+            except Exception:
+                ag = None
         res.append(dict(id=hid, rotulo=it.get("rotulo", hid), cor=it.get("cor", "#ffd60a"), tif=tif,
-                        drenagem=gpd.read_file(gp, layer="drenagem"), agua=ag))
+                        drenagem=dren, agua=ag))
     return res

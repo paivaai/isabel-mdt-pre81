@@ -26,15 +26,15 @@ drenagem:
   area_min_px: 12
   compr_min_px: 15
 
-# Imagens históricas: extrai o rio/drenagem de cada ano e plota no webmap (imagem, água e linhas, desligáveis).
+# Imagens históricas: entram no webmap como camada de imagem. tracar: true liga a extração do traçado (desligada: o resultado não ficou bom).
 # crs: deixe null se o TIF já é georreferenciado; para TIFF + .tfw sem CRS informe (ex.: "EPSG:31982", "EPSG:22522")
 # ou deixe null para deduzir pela AOI (confira no log).
 # Método padrão = TRAÇADO do curso d'água (linha central de faixa escura FINA e contínua ligada ao rio principal).
 # Ajustes opcionais por imagem: largura_max_m (250), comp_min_m (1500), laco_max_por_km (1.2), ponte_m (250),
 # q_baixo/q_alto (90/97: sensibilidade), corredor_km (3). Método antigo (manchas): metodo: manchas.
 historicas:
-  - {id: "1973", rotulo: "1973", arquivo: data/IMAGEM_1973_A.tif, crs: null, cor: "#ffd60a", px_max: 7000}
-  - {id: "1967", rotulo: "1967", arquivo: data/IMAGEM_67_Bebel.tif, crs: null, cor: "#ff7b00", px_max: 7000}
+  - {id: "1973", rotulo: "1973", arquivo: data/IMAGEM_1973_A.tif, crs: null, cor: "#ffd60a", px_max: 7000, tracar: false}
+  - {id: "1967", rotulo: "1967", arquivo: data/IMAGEM_67_Bebel.tif, crs: null, cor: "#ff7b00", px_max: 7000, tracar: false}
 
 curvas:
   baixar_ibge: true                       # tenta cartas vetoriais 1:50.000 do IBGE se o arquivo acima não existir
@@ -50,8 +50,9 @@ saidas:
 
 webmap:
   titulo: "Projeto Isabel — MDT pré-1981 (Buritama/Zacarias)"
-  resumo: "Landsat 1979, drenagem e MDT derivado de cartas topográficas antigas, sobre imagem atual."
+  resumo: "Landsat 1979, imagens 1967/1973, MDT e hidrografia derivados das cartas topográficas IBGE 1:50.000 (pré-1981, datum Córrego Alegre; ano de edição por folha não consta nos metadados), sobre imagem atual."
   pasta_site: docs                        # publicado pelo GitHub Pages
+  mostrar_drenagem_1979: false            # drenagem/água do Landsat 1979 fora do webmap
   standalone: true                        # também gera outputs/webmap_standalone.html (arquivo único)
   # Camadas WMS opcionais (desligadas). BDGEx removido: não exibia (o diagnóstico fica em data/ana_inventario.txt).
   wms: []

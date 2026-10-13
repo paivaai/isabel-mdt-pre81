@@ -23,8 +23,8 @@ def test_imagens_historicas(projeto):
     _foto(projeto, "h73.tif", from_origin(X0, Y0 + 18000, 30, 30), 600, 600, crs="EPSG:31982")
     _foto(projeto, "h67.tif", from_origin(X0, Y0 + 18000, 30, 30), 600, 600, tfw=True)   # sem CRS
     cfg = yaml.safe_load(open(projeto / "config/projeto.yml", encoding="utf-8"))
-    cfg["historicas"] = [dict(id="1973", rotulo="1973", arquivo="data/h73.tif", cor="#ffd60a"),
-                         dict(id="1967", rotulo="1967", arquivo="data/h67.tif", cor="#ff7b00")]
+    cfg["historicas"] = [dict(id="1973", rotulo="1973", arquivo="data/h73.tif", cor="#ffd60a", tracar=True),
+                         dict(id="1967", rotulo="1967", arquivo="data/h67.tif", cor="#ff7b00", tracar=True)]
     yaml.safe_dump(cfg, open(projeto / "config/projeto.yml", "w", encoding="utf-8"), allow_unicode=True)
     executar(["aoi", "historicas", "webmap"], str(projeto / "config/projeto.yml"))
     for y in ("1973", "1967"):
@@ -52,9 +52,18 @@ def test_guia_hidrografia_ibge_e_camadas(projeto):
     gpd.GeoDataFrame({"nivel": [2], "folha": ["t"]}, geometry=[rio.buffer(60)], crs="EPSG:31982").to_file(
         projeto / "data/hidrografia_ibge.gpkg", layer="poligonos", driver="GPKG")
     cfg = yaml.safe_load(open(projeto / "config/projeto.yml", encoding="utf-8"))
-    cfg["historicas"] = [dict(id="1973", rotulo="1973", arquivo="data/h73.tif", cor="#ffd60a")]
+    cfg["historicas"] = [dict(id="1973", rotulo="1973", arquivo="data/h73.tif", cor="#ffd60a", tracar=True)]
     cfg["entradas"]["hidro_ibge"] = "data/hidrografia_ibge.gpkg"
     yaml.safe_dump(cfg, open(projeto / "config/projeto.yml", "w", encoding="utf-8"), allow_unicode=True)
     executar(["historicas", "webmap"], str(projeto / "config/projeto.yml"))
     html = (projeto / "outputs/webmap_standalone.html").read_text(encoding="utf-8")
     assert "Hidrografia das cartas IBGE" in html
+
+
+def test_so_imagem_sem_drenagem(projeto):
+    cfg = yaml.safe_load(open(projeto / "config/projeto.yml", encoding="utf-8"))
+    cfg["historicas"] = [dict(id="1973", rotulo="1973", arquivo="data/h73.tif")]
+    yaml.safe_dump(cfg, open(projeto / "config/projeto.yml", "w", encoding="utf-8"), allow_unicode=True)
+    executar(["historicas", "webmap"], str(projeto / "config/projeto.yml"))
+    html = (projeto / "outputs/webmap_standalone.html").read_text(encoding="utf-8")
+    assert "Imagem 1973" in html and "Drenagem 1973" not in html and "Drenagem 1979" not in html
