@@ -30,7 +30,7 @@ def test_imagens_historicas(projeto):
     for y in ("1973", "1967"):
         assert (projeto / f"outputs/hist_{y}/drenagem_{y}.gpkg").exists()
     html = (projeto / "outputs/webmap_standalone.html").read_text(encoding="utf-8")
-    for t in ("Drenagem 1967", "Drenagem 1973", "Imagem 1967", "Rio/\\u00e1gua 1973"):
+    for t in ("Drenagem 1967", "Drenagem 1973", "Imagem 1967"):
         assert t in html
 
 

@@ -96,18 +96,29 @@ def processar_imagem(item, aoi, base, saida, natd=None):
     pasta = os.path.join(saida, f"hist_{hid}")
     rec, info = recortar_imagem(arq, aoi, os.path.join(pasta, f"recorte_{hid}.tif"), item.get("crs"),
                                 int(item.get("px_max", 7000)))
-    mascara = None
-    km = float(item.get("corredor_km", 5))
-    if natd is not None and len(natd) and km > 0:   # procura o rio só ao longo das áreas NA_TD (+ corredor)
-        mascara = shapely.union_all(natd.geometry.values).buffer(km * 1000).intersection(aoi)
+    mascara = semente = None
+    km = float(item.get("corredor_km", 3))
+    if natd is not None and len(natd) and km > 0:   # procura só ao longo das áreas NA_TD (+ corredor)
+        g = shapely.union_all(natd.geometry.values)
+        mascara = g.buffer(km * 1000).intersection(aoi)
+        semente = g.buffer(float(item.get("semente_m", 300))).intersection(aoi)
         print(f"  corredor de busca: NA_TD + {km:g} km")
-    gl, ga = core.extrair_drenagem(rec, pasta, modo=item.get("modo", "todas"),
-                                   ajuste_limiar=item.get("ajuste_limiar", 1.0),
-                                   area_min_px=item.get("area_min_px", 12), compr_min_px=item.get("compr_min_px", 15),
-                                   rotulo=hid, poligono=item.get("poligono", "toda"), mascara=mascara,
-                                   textura_px=int(item.get("textura_px", 7)),
-                                   agua_max_pct=item.get("agua_max_pct", 15),
-                                   area_min_km2=float(item.get("area_min_km2", 0.02)))
+    if item.get("metodo", "tracado") == "tracado":
+        from . import tracado
+        gl, ga = tracado.extrair_tracado(
+            rec, pasta, hid, mascara=mascara, semente=semente,
+            largura_max_m=float(item.get("largura_max_m", 250)), comp_min_m=float(item.get("comp_min_m", 1500)),
+            laco_max_por_km=float(item.get("laco_max_por_km", 1.2)), elong_min=float(item.get("elong_min", 0.22)),
+            ponte_m=float(item.get("ponte_m", 250)), esporao_m=float(item.get("esporao_m", 150)),
+            q_baixo=float(item.get("q_baixo", 90)), q_alto=float(item.get("q_alto", 97)))
+    else:                                           # método antigo (manchas escuras -> água)
+        gl, ga = core.extrair_drenagem(rec, pasta, modo=item.get("modo", "todas"),
+                                       ajuste_limiar=item.get("ajuste_limiar", 1.0),
+                                       area_min_px=item.get("area_min_px", 12), compr_min_px=item.get("compr_min_px", 15),
+                                       rotulo=hid, poligono=item.get("poligono", "toda"), mascara=mascara,
+                                       textura_px=int(item.get("textura_px", 7)),
+                                       agua_max_pct=item.get("agua_max_pct", 15),
+                                       area_min_km2=float(item.get("area_min_km2", 0.02)))
     return dict(id=hid, gl=gl, ga=ga, info=info)
 
 
